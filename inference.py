@@ -10,7 +10,7 @@ import segmentation_models as sm
 import matplotlib.pyplot as plt
 
 # config
-MODEL_PATH = "best_model.keras"
+MODEL_PATH = "best_model_colab.keras"
 IMG_SIZE   = 256  # internal processing size
 THRESHOLD  = 0.5
 
@@ -26,27 +26,21 @@ model = tf.keras.models.load_model(
 
 # running inference
 def predict(image_path):
-
     original = cv2.imread(image_path)
     original = cv2.cvtColor(original, cv2.COLOR_BGR2RGB)
     orig_h, orig_w = original.shape[:2]
 
     resized = cv2.resize(original, (IMG_SIZE, IMG_SIZE))
-    
-    # normalize with ImageNet stats — ResNet34 expects this
-    inp = resized.astype(np.float32) / 255.0
-    mean = np.array([0.485, 0.456, 0.406])
-    std  = np.array([0.229, 0.224, 0.225])
-    inp  = (inp - mean) / std
-    inp  = np.expand_dims(inp, axis=0)
+    inp = resized.astype(np.float32) / 255.0  # same as training
+    inp = np.expand_dims(inp, axis=0)
 
     pred = model.predict(inp, verbose=0)
     pred = pred[0, :, :, 0]
-    pred = (pred > THRESHOLD).astype(np.uint8) * 255  # back to > not 
+    pred = (pred > THRESHOLD).astype(np.uint8) * 255
 
     mask_full = cv2.resize(pred, (orig_w, orig_h), interpolation=cv2.INTER_NEAREST)
-
     return original, mask_full
+
 # save result
 def save_results(image_path):
     original, mask = predict(image_path)
