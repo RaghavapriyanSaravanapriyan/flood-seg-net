@@ -72,106 +72,62 @@ The network is structured as a symmetric encoder-decoder architecture:
 * **Expanding Path (Decoder):** Progressively upsamples the feature maps (reconstructing spatial dimensions) to match the original input resolution, restoring localization information (the "where" of the image).
 * **Skip Connections:** Skip connections concatenate feature maps from the encoder directly to the decoder blocks at corresponding resolutions. Downsampling layers (like max pooling) discard spatial details to gain translation invariance and abstraction. Skip connections bypass the bottleneck, feeding high-frequency, low-level spatial details (such as sharp boundaries, edges, and textures) back to the decoder. This enables the model to accurately reconstruct the exact boundaries of flooded regions.
 
-### ResNet18 Encoder Backbone
+#### ResNet18 Encoder Backbone
 Rather than training a U-Net encoder from scratch, this implementation utilizes a pretrained ResNet18 backbone.
-* **Residual Learning:** ResNet architectures utilize identity shortcut connections to solve the vanishing gradient problem in deep networks. The block computes a residual function $F(x)$ such that the output is $H(x) = F(x) + x$. This allows gradients to flow directly back through the shortcuts during backpropagation, stabilizing training.
-* **Transfer Learning:** The encoder weights are initialized with parameters pretrained on the ImageNet dataset. ImageNet contains over a million natural images, forcing the early layers of ResNet18 to learn highly generalizable visual features (e.g., Gabor-like edge detectors, corners, color gradients, and textures). By utilizing these pretrained feature extractors, the model converges much faster and generalizes far better on small, domain-specific datasets.
-* **Why ResNet18:** ResNet18 was selected over deeper architectures (like ResNet34 or ResNet50) to limit model capacity. With only 18 layers, ResNet18 extracts rich feature hierarchies while maintaining a low parameter count, acting as a structural regularizer against overfitting on small datasets.
+* **Residual Learning:** ResNet architectures utilize identity shortcut connections to solve the vanishing gradient problem in deep networks. By adding the input of a block directly to its output, the network learns to model residual details, which prevents gradients from vanishing during backpropagation and stabilizes the training process.
+* **Transfer Learning:** The encoder weights are initialized with parameters pretrained on the ImageNet dataset. ImageNet contains over a million natural images, forcing the early layers of ResNet18 to learn highly generalizable visual features (such as edge detectors, corners, color gradients, and textures). By utilizing these pretrained feature extractors, the model converges much faster and generalizes far better on small, domain-specific datasets.
+* **Why ResNet18:** ResNet18 was selected over deeper architectures (like ResNet34 or ResNet50) to limit model capacity. With fewer layers and parameters, ResNet18 extracts rich feature hierarchies while acting as a structural regularizer against overfitting on small datasets.
 
 ### Compound Loss Formulation: BCE + Dice Loss
 The model is trained using a combined loss function that balances pixel-wise class confidence and global boundary alignment:
-```math
-\mathcal{L}_{\text{BCE-Dice}} = \mathcal{L}_{\text{BCE}} + \mathcal{L}_{\text{Dice}}
-```
 
-#### Binary Cross-Entropy (BCE) Loss
-BCE evaluates classification error on a pixel-by-pixel level independently:
-```math
-\mathcal{L}_{\text{BCE}}(y, \hat{y}) = -\frac{1}{N} \sum_{i=1}^{N} \left[ y_i \log(\hat{y}_i) + (1 - y_i) \log(1 - \hat{y}_i) \right]
-```
-where `y_i \in {0, 1}` represents the ground truth, `\hat{y}_i \in [0, 1]` is the predicted probability, and `N` is the total pixel count. While BCE provides stable gradients, it can struggle under class imbalance if the background dominates.
-
-#### Dice Loss
-Dice Loss measures overlap between the predicted mask and ground truth, addressing class imbalance:
-```math
-\text{Dice}(y, \hat{y}) = \frac{2 \sum_{i=1}^{N} y_i \hat{y}_i}{\sum_{i=1}^{N} y_i + \sum_{i=1}^{N} \hat{y}_i + \epsilon}
-```
-```math
-\mathcal{L}_{\text{Dice}}(y, \hat{y}) = 1 - \text{Dice}(y, \hat{y})
-```
-where `\epsilon = 10^{-7}` is a smoothing factor.
-
-#### Synergy of Combined Loss
-BCE establishes stable training dynamics, while Dice Loss optimizes directly for spatial overlap (F1-score) and boundary accuracy. This prevents the network from predicting an empty mask in the presence of severe class imbalance.
+* **Binary Cross-Entropy (BCE) Loss:** BCE evaluates classification error on a pixel-by-pixel level independently. It measures how close the predicted probability is to the true binary value. While BCE provides stable gradients, it can struggle when background pixels vastly outnumber flood pixels (class imbalance), causing the network to ignore small flood regions.
+* **Dice Loss:** Dice Loss measures the direct overlap between the predicted mask and ground truth mask, penalizing mismatches at a structural level. Because it evaluates the prediction globally rather than pixel-by-pixel, it naturally handles class imbalance.
+* **Synergy of Combined Loss:** BCE establishes stable training dynamics in the early stages, while Dice Loss optimizes directly for spatial overlap and boundary accuracy. Combining them forces the network to minimize individual pixel errors while maximizing overall overlap, preventing the model from predicting a blank mask.
 
 ### Evaluation Metrics
 Validation performance is tracked via spatial overlap metrics:
-* **F1 Score / Dice Coefficient:** Measures the harmonic mean of precision and recall:
-```math
-\text{F1} = \frac{2 \times \text{True Positives}}{2 \times \text{True Positives} + \text{False Positives} + \text{False Negatives}}
-```
-* **Intersection over Union (IoU):** Measures the ratio of intersection to union:
-```math
-\text{IoU} = \frac{\text{True Positives}}{\text{True Positives} + \text{False Positives} + \text{False Negatives}}
-```
-A validation F1 of ~0.75 and IoU of ~0.60 indicate robust overlap and precise boundary mapping across diverse aerial scenes.
+* **F1 Score / Dice Coefficient:** Measures the harmonic mean of precision and recall, representing the model's accuracy in capturing flooded areas without generating excess false alarms.
+* **Intersection over Union (IoU):** Measures the ratio of intersection to union between predicted and ground truth masks, reflecting the tightness of boundary alignment.
+
+A validation F1 of around 0.75 and IoU of around 0.60 indicate robust overlap and precise boundary mapping across diverse aerial scenes.
 
 ---
 
 ## Engineering Journey and Case Study
 
-The development of this model was an iterative engineering process characterized by regularization tuning, architectural experiments, and infrastructure scaling.
+I went through an iterative engineering process to design, regularize, and scale this model, moving through several architectures and hardware setups to combat overfitting on a small dataset.
 
 ```
        Initial Design                   Model Tuning                     Infrastructure
 +--------------------------+    +--------------------------+    +------------------------------+
 |   ResNet34 Backbone      |    |   ResNet18 Backbone      |    |     Local CPU Training       |
-|   (Severe Overfitting)   |    |    (Reduced Capacity)    |    |   (High iteration bottleneck)|
+|  (Overfitted Prototype)  |    |  (Simplified Capacity)   |    | (Extremely slow iterations)  |
 +------------+-------------+    +------------+-------------+    +--------------+---------------+
              |                               |                                 |
              v                               v                                 v
 +------------+-------------+    +------------+-------------+    +--------------+---------------+
-|  Train F1: ~0.88         |    |  Train F1: ~0.91         |    |     Google Colab T4 GPU      |
-|  Val F1:   ~0.57         |    |  Val F1:   ~0.75         |    |   (Epoch speedup: ~100x)     |
+| Training F1: ~0.88       |    | Training F1: ~0.91       |    |     Google Colab T4 GPU      |
+| Validation F1: ~0.57     |    | Validation F1: ~0.75     |    |   (Epoch speedup: ~100x)     |
 +--------------------------+    +--------------------------+    +------------------------------+
 ```
 
-### Initial Architecture & Overfitting Analysis
-The initial prototype used a **ResNet34** encoder backbone within the U-Net framework. The model was trained using the Adam optimizer and the compound BCE-Dice loss. 
+### Initial Prototype & Overfitting
+I built my first prototype using a ResNet34 encoder backbone inside a U-Net model. While I compiled it with the standard Adam optimizer and a combined loss function hoping for strong accuracy, I immediately ran into a major overfitting issue. The training F1 score rapidly climbed to around 0.88, but the validation F1 score stagnated and would not go past 0.57. Since the dataset is small—with only 290 total images (232 for training and 58 for validation)—the high-capacity ResNet34 backbone was simply memorizing the specific background details and textures of the training images instead of learning how to identify flooded regions generally.
 
-During training, a severe generalization gap was observed:
-* **Training F1:** Climbed to $\approx 0.88$
-* **Validation F1:** Stagnated at $\approx 0.57$
+### Callbacks and Regularization
+To address this generalization gap, I introduced two callbacks into the training pipeline to monitor and regularize the model:
+1. **Model Checkpointing:** I set up checkpointing to monitor validation performance and save only the weights representing the absolute best validation F1 score. This prevented the final saved model from capturing overfitted features from later epochs.
+2. **Early Stopping:** I configured early stopping with a patience of 8 epochs. This automatically stopped training when the validation F1 score stopped improving, preventing the model from continuing to overfit the training dataset.
 
-This large performance gap is a classic indicator of overfitting. The dataset consists of only 290 images (split into 232 training samples and 58 validation samples). ResNet34, with approximately 21 million parameters in its backbone alone, possesses too much capacity for a dataset of this size. Rather than learning general visual features of flooded landscapes (such as water reflectivity, channel structures, and context), the model memorized the specific spatial configurations, noise patterns, and lighting conditions of the 232 training images. 
+### Simplifying the Encoder Backbone
+Realizing that the network had too much capacity for a small dataset, I decided to simplify the encoder by switching from ResNet34 to ResNet18. This significantly reduced the parameter count. This change acted as a strong regularization mechanism: while training F1 reached 0.91, this time the validation F1 successfully rose to 0.75, with the validation IoU settling around 0.60. This confirmed that reducing the model capacity was key to getting the model to generalize.
 
-### Debugging & Training Regularization
-To address the overfitting, the training pipeline was regularized and monitored using callbacks:
-1. **Model Checkpointing:** Integrated `ModelCheckpoint` to monitor `val_f1-score` and save only the model weights that achieved the highest validation F1 score. This prevented saving model weights from later epochs where the training loss continued to fall but the validation loss deteriorated.
-2. **Early Stopping:** Configured `EarlyStopping` with `patience=8` and `restore_best_weights=True`, monitoring `val_f1-score`. This terminated training automatically when validation performance stopped improving, preventing unnecessary training epochs and reducing overfitting.
+### EfficientNet Hurdles
+I also tried switching the encoder backbone to EfficientNet (specifically EfficientNet-B0) to see if depthwise separable convolutions would perform better. This experiment turned into a major debugging exercise. First, I ran into broken download issues when the automated script failed to fetch the pretrained weights due to legacy library backend issues. Once I worked around that, I realized I had accidentally instantiated the classification backbone without the actual U-Net decoder blocks, meaning it could not output spatial masks. Finally, when manually writing the connection layers, I hit tensor shape mismatch errors because EfficientNet downsamples features with different strides and dimensions compared to ResNet. While I ultimately reverted to ResNet18, debugging these mismatches gave me a much deeper understanding of spatial dimensions in contracting and expanding paths.
 
-### Model Refinement: Transition to ResNet18
-To structurally regularize the network, the backbone encoder was changed from **ResNet34** to **ResNet18**. 
-
-ResNet18 contains significantly fewer residual blocks and channels, reducing the model's capacity and making it harder to memorize the training data. This change improved generalization:
-* The training F1 reached $\approx 0.91$.
-* The validation F1 rose to $\approx 0.75$.
-* The validation IoU settled at $\approx 0.60$.
-
-By reducing the model's capacity, the validation F1 score improved by 18% absolute (from 0.57 to 0.75), demonstrating that a smaller model was better suited for this limited dataset.
-
-### EfficientNet Experiment Post-Mortem
-An attempt was made to replace the ResNet backbone with an **EfficientNet** encoder (such as EfficientNetB0) to leverage mobile-friendly depthwise separable convolutions. However, this experiment encountered three distinct failures:
-1. **Broken Pretrained Weight Downloads:** The automated weights download script failed due to deprecated URLs and SSL certificate issues within the legacy `segmentation_models` library's backend.
-2. **Encoder-only Compilation:** During configuration, the backbone was accidentally instantiated without the corresponding U-Net decoder blocks, leading to a standard classification network that could not produce 2D spatial masks.
-3. **Tensor Shape Mismatch:** When attempting to manually bind the encoder to the decoder, shape mismatch errors occurred. EfficientNet structures downsample feature maps using different stride patterns and block scales compared to ResNet. The decoder's upsampling layers failed to concatenate with the encoder's feature maps because their spatial dimensions did not match (e.g., trying to concatenate a $9 \times 9$ feature map with an $8 \times 8$ feature map).
-
-Debugging these issues required analyzing feature map dimensions at each block boundary, which improved our understanding of contracting-expanding paths and structural constraints in semantic segmentation.
-
-### GPU Acceleration
-Initially, the training pipeline was executed on a local CPU. Due to the high computational complexity of backpropagation through deep convolutional neural networks, each epoch took several minutes, limiting the speed of experimentation.
-
-The pipeline was migrated to a Google Colab environment utilizing a **T4 GPU**. The GPU accelerated the matrix multiplications, reducing the epoch step time to between 180ms and 1 second. This allowed for rapid iteration, enabling the completion of hyperparameter sweeps and backbone evaluations in a fraction of the time.
+### CPU to GPU Migration
+Initially, I was training the model on a local CPU. Because backpropagation through convolutional neural networks is computationally expensive, each epoch took several minutes, which made iterative testing extremely slow. To speed up my workflow, I migrated the pipeline to Google Colab, leveraging a T4 GPU. This GPU accelerated the training process dramatically, dropping the epoch time to under a second and allowing me to iterate and find the best configuration quickly.
 
 ---
 
@@ -198,15 +154,12 @@ graph TD
 ### Detailed Pipeline Steps
 1. **Image Reading:** The input image is loaded via OpenCV (`cv2.imread`).
 2. **Color Space Conversion:** OpenCV reads images in BGR format; they are converted to RGB using `cv2.cvtColor` to match the training distribution.
-3. **Dimensional Resize:** The image is resized to $256 \times 256$ pixels using bilinear interpolation (`cv2.resize`).
-4. **Data Normalization:** Pixel values are cast to float32 and normalized to $[0.0, 1.0]$ by dividing by 255.0.
-5. **Model Evaluation:** The image is expanded to batch shape $(1, 256, 256, 3)$ and passed through the ResNet18 U-Net, returning a probability map.
-6. **Binarization:** A threshold of $0.5$ is applied; values above $0.5$ are mapped to 255 (flooded) and values below to 0 (background).
+3. **Dimensional Resize:** The image is resized to 256 x 256 pixels using bilinear interpolation (`cv2.resize`).
+4. **Data Normalization:** Pixel values are cast to float32 and normalized to a range of 0.0 to 1.0 by dividing by 255.0.
+5. **Model Evaluation:** The image is expanded to batch shape (1, 256, 256, 3) and passed through the ResNet18 U-Net, returning a probability map.
+6. **Binarization:** A threshold of 0.5 is applied; values above 0.5 are mapped to 255 (flooded) and values below to 0 (background).
 7. **Spatial Upsampling:** The mask is resized back to the original image dimensions using nearest-neighbor interpolation (`cv2.INTER_NEAREST`) to preserve sharp boundary transitions without introducing interpolation artifacts.
-8. **Visual Overlay:** A translucent blue mask is blended with the original image:
-```math
-\text{Overlay} = 0.4 \times \text{Original Image} + 0.6 \times \text{Flood Color [0, 100, 255]}
-```
+8. **Visual Overlay:** A translucent blue mask is blended with the original image by mixing 40% of the original image with 60% of a solid blue color mask (RGB values [0, 100, 255]) to highlight the predicted flooded pixels.
 9. **Error Map Generation:** If ground truth is provided, an error map is constructed to evaluate predictions.
 
 ---
@@ -218,8 +171,8 @@ The model evaluation script (`test.py`) filters out images with less than 10% fl
 
 | Metric | Performance |
 | :--- | :--- |
-| **Validation F1 Score (Dice)** | $\approx 0.753$ |
-| **Validation IoU Score** | $\approx 0.606$ |
+| **Validation F1 Score (Dice)** | 0.75 |
+| **Validation IoU Score** | 0.60 |
 
 Below are the evaluation results for the top 5 test images:
 
@@ -289,7 +242,7 @@ flood-seg-net/
 
 | Parameter | Configuration Value |
 | :--- | :--- |
-| **Input Shape** | $256 \times 256 \times 3$ |
+| **Input Shape** | 256 x 256 x 3 |
 | **Batch Size** | 8 |
 | **Optimizer** | Adam (Learning Rate = 0.001) |
 | **Loss Function** | Binary Cross-Entropy + Dice Loss |
