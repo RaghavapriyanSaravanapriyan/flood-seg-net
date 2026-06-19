@@ -79,31 +79,42 @@ Rather than training a U-Net encoder from scratch, this implementation utilizes 
 * **Why ResNet18:** ResNet18 was selected over deeper architectures (like ResNet34 or ResNet50) to limit model capacity. With only 18 layers, ResNet18 extracts rich feature hierarchies while maintaining a low parameter count, acting as a structural regularizer against overfitting on small datasets.
 
 ### Compound Loss Formulation: BCE + Dice Loss
-To train the segmentation network, a combined loss function is utilized:
-$$\mathcal{L}_{\text{BCE-Dice}} = \mathcal{L}_{\text{BCE}} + \mathcal{L}_{\text{Dice}}$$
+The model is trained using a combined loss function that balances pixel-wise class confidence and global boundary alignment:
+```math
+\mathcal{L}_{\text{BCE-Dice}} = \mathcal{L}_{\text{BCE}} + \mathcal{L}_{\text{Dice}}
+```
 
 #### Binary Cross-Entropy (BCE) Loss
-BCE computes the pixel-wise classification loss, evaluating each pixel independently:
-$$\mathcal{L}_{\text{BCE}}(y, \hat{y}) = -\frac{1}{N} \sum_{i=1}^{N} \left[ y_i \log(\hat{y}_i) + (1 - y_i) \log(1 - \hat{y}_i) \right]$$
-where $y_i \in \{0, 1\}$ is the ground truth label for pixel $i$, $\hat{y}_i \in [0, 1]$ is the predicted probability for pixel $i$, and $N$ is the total number of pixels. BCE provides smooth gradients for optimization but can struggle under severe class imbalance, as the loss is dominated by the background class when the background occupies the majority of the image.
+BCE evaluates classification error on a pixel-by-pixel level independently:
+```math
+\mathcal{L}_{\text{BCE}}(y, \hat{y}) = -\frac{1}{N} \sum_{i=1}^{N} \left[ y_i \log(\hat{y}_i) + (1 - y_i) \log(1 - \hat{y}_i) \right]
+```
+where `y_i \in {0, 1}` represents the ground truth, `\hat{y}_i \in [0, 1]` is the predicted probability, and `N` is the total pixel count. While BCE provides stable gradients, it can struggle under class imbalance if the background dominates.
 
 #### Dice Loss
-Dice Loss is based on the Dice Coefficient (equivalent to the F1 score), which measures the overlap between the predicted mask and the ground truth mask:
-$$\text{Dice}(y, \hat{y}) = \frac{2 \sum_{i=1}^{N} y_i \hat{y}_i}{\sum_{i=1}^{N} y_i + \sum_{i=1}^{N} \hat{y}_i + \epsilon}$$
-$$\mathcal{L}_{\text{Dice}}(y, \hat{y}) = 1 - \text{Dice}(y, \hat{y})$$
-where $\epsilon = 10^{-7}$ is a smoothing factor. Dice Loss evaluates the prediction globally rather than pixel-by-pixel, mitigating the effects of class imbalance.
+Dice Loss measures overlap between the predicted mask and ground truth, addressing class imbalance:
+```math
+\text{Dice}(y, \hat{y}) = \frac{2 \sum_{i=1}^{N} y_i \hat{y}_i}{\sum_{i=1}^{N} y_i + \sum_{i=1}^{N} \hat{y}_i + \epsilon}
+```
+```math
+\mathcal{L}_{\text{Dice}}(y, \hat{y}) = 1 - \text{Dice}(y, \hat{y})
+```
+where `\epsilon = 10^{-7}` is a smoothing factor.
 
 #### Synergy of Combined Loss
-BCE ensures stable training dynamics and smooth gradient descent in the initial epochs, while Dice Loss optimizes directly for spatial overlap and boundary precision. The combination forces the network to minimize individual pixel errors while maximizing overall structural overlap, preventing the model from falling into local minima where it predicts a blank mask.
+BCE establishes stable training dynamics, while Dice Loss optimizes directly for spatial overlap (F1-score) and boundary accuracy. This prevents the network from predicting an empty mask in the presence of severe class imbalance.
 
 ### Evaluation Metrics
-To measure segmentation quality during validation, two primary metrics are tracked:
+Validation performance is tracked via spatial overlap metrics:
 * **F1 Score / Dice Coefficient:** Measures the harmonic mean of precision and recall:
-$$\text{F1} = \frac{2 \cdot \text{True Positives}}{2 \cdot \text{True Positives} + \text{False Positives} + \text{False Negatives}}$$
-* **Intersection over Union (IoU) / Jaccard Index:** Measures the ratio of the intersection area to the union area of the predicted and ground truth masks:
-$$\text{IoU} = \frac{\text{True Positives}}{\text{True Positives} + \text{False Positives} + \text{False Negatives}}$$
-
-A validation F1 of 0.75 indicates strong pixel-level recall and precision, meaning the model accurately captures the presence of floodwaters. A validation IoU of 0.60 indicates a solid, consistent overlap between the predicted flood boundaries and the ground truth annotations across diverse terrains.
+```math
+\text{F1} = \frac{2 \times \text{True Positives}}{2 \times \text{True Positives} + \text{False Positives} + \text{False Negatives}}
+```
+* **Intersection over Union (IoU):** Measures the ratio of intersection to union:
+```math
+\text{IoU} = \frac{\text{True Positives}}{\text{True Positives} + \text{False Positives} + \text{False Negatives}}
+```
+A validation F1 of ~0.75 and IoU of ~0.60 indicate robust overlap and precise boundary mapping across diverse aerial scenes.
 
 ---
 
@@ -193,7 +204,9 @@ graph TD
 6. **Binarization:** A threshold of $0.5$ is applied; values above $0.5$ are mapped to 255 (flooded) and values below to 0 (background).
 7. **Spatial Upsampling:** The mask is resized back to the original image dimensions using nearest-neighbor interpolation (`cv2.INTER_NEAREST`) to preserve sharp boundary transitions without introducing interpolation artifacts.
 8. **Visual Overlay:** A translucent blue mask is blended with the original image:
-$$\text{Overlay} = 0.4 \times \text{Original Image} + 0.6 \times \text{Flood Color [0, 100, 255]}$$
+```math
+\text{Overlay} = 0.4 \times \text{Original Image} + 0.6 \times \text{Flood Color [0, 100, 255]}
+```
 9. **Error Map Generation:** If ground truth is provided, an error map is constructed to evaluate predictions.
 
 ---
