@@ -1,5 +1,10 @@
 # Flood-Seg-Net: Semantic Segmentation of Flooded Regions in Aerial Imagery
 
+<p align="center">
+  <img src="tests/2001_visualization.png" alt="Inference Visualization Image 2001" width="49%" />
+  <img src="tests/3039_visualization.png" alt="Inference Visualization Image 3039" width="49%" />
+</p>
+
 This repository contains the implementation of a deep learning system for the binary semantic segmentation of flooded regions from aerial imagery. The model utilizes a U-Net architecture paired with a pretrained ResNet18 encoder (transfer learning) to produce high-precision flood boundary masks.
 
 The model was trained on the Flood Area Segmentation dataset, achieving a validation F1 score of approximately 0.75 and a validation Intersection over Union (IoU) of approximately 0.60.
