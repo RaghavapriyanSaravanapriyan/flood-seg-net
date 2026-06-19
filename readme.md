@@ -5,18 +5,28 @@
   <img src="tests/3039_visualization.png" alt="Inference Visualization Image 3039" width="49%" />
 </p>
 
-This repository contains the implementation of a deep learning system for the binary semantic segmentation of flooded regions from aerial imagery. The model utilizes a U-Net architecture paired with a pretrained ResNet18 encoder (transfer learning) to produce high-precision flood boundary masks.
+### Model Performance & Configuration Summary
 
-The model was trained on the Flood Area Segmentation dataset, achieving a validation F1 score of approximately 0.75 and a validation Intersection over Union (IoU) of approximately 0.60.
+| Metric / Configuration | Value / Setting |
+| :--- | :--- |
+| **Validation F1 Score (Dice)** | 0.7531 (0.75) |
+| **Validation IoU Score** | 0.6057 (0.61) |
+| **Best Test Image (2001.jpg) Dice / IoU** | 0.9825 / 0.9656 |
+| **Backbone Encoder** | ResNet34 U-Net (ImageNet Transfer Learning) |
+| **Training Epochs / Batch Size** | 30 / 8 |
+| **Loss Function** | Combined Binary Cross-Entropy + Dice Loss |
+| **Hardware Platform** | Google Colab T4 GPU |
 
 ---
 
-## Technical Architecture Deep-Dive
+## Project Overview
+This repository contains a deep learning system for the binary semantic segmentation of flooded regions from aerial imagery. The model classifies each pixel as either **Flood** or **Background**, allowing precise spatial mapping of flood zones. The system was trained on the Flood Area Segmentation dataset, achieving robust boundary delineation.
 
-### Semantic Segmentation for Flood Mapping
-Semantic segmentation refers to the process of classifying each individual pixel in an image into a corresponding class label. Unlike image classification (which assigns a single label to an entire image) or object detection (which identifies objects using coarse bounding boxes), semantic segmentation provides pixel-level delineations. 
+---
 
-For flood mapping, pixel-level resolution is crucial. Floods are amorphous, non-rigid bodies of water that do not conform to structured bounding boxes. They flow dynamically across terrain, blocking roads, submerging agricultural fields, and wrapping around structures. Binary semantic segmentation (classifying pixels as either **Flood** [1] or **Background** [0]) is highly suited for this task, enabling emergency responders and rescue teams to compute precise spatial coverage, identify submerged transportation networks, and estimate damage boundaries.
+## Technical Architecture
+
+The system utilizes a symmetric U-Net encoder-decoder network to capture both context and fine localization:
 
 ```mermaid
 graph TD
@@ -24,12 +34,12 @@ graph TD
         In[Input Aerial Image: 256x256x3]
     end
 
-    subgraph ResNet18 Encoder Contracting Path
+    subgraph ResNet34 Encoder Contracting Path
         E1[Conv1 + MaxPool: 128x128x64]
-        E2[ResBlock 1: 64x64x64]
-        E3[ResBlock 2: 32x32x128]
-        E4[ResBlock 3: 16x16x256]
-        E5[ResBlock 4 / Bottleneck: 8x8x512]
+        E2[Stage 1: 64x64x64]
+        E3[Stage 2: 32x32x128]
+        E4[Stage 3: 16x16x256]
+        E5[Stage 4 / Bottleneck: 8x8x512]
     end
 
     subgraph U-Net Decoder Expanding Path
@@ -66,74 +76,32 @@ graph TD
     style E5 fill:#fef9e7,stroke:#f39c12,stroke-width:2px
 ```
 
-### U-Net Architecture
-The network is structured as a symmetric encoder-decoder architecture:
-* **Contracting Path (Encoder):** Extracts high-level semantic features from the input image. As the spatial resolution decreases through downsampling operations, the channel dimension increases, capturing context (the "what" of the image).
-* **Expanding Path (Decoder):** Progressively upsamples the feature maps (reconstructing spatial dimensions) to match the original input resolution, restoring localization information (the "where" of the image).
-* **Skip Connections:** Skip connections concatenate feature maps from the encoder directly to the decoder blocks at corresponding resolutions. Downsampling layers (like max pooling) discard spatial details to gain translation invariance and abstraction. Skip connections bypass the bottleneck, feeding high-frequency, low-level spatial details (such as sharp boundaries, edges, and textures) back to the decoder. This enables the model to accurately reconstruct the exact boundaries of flooded regions.
-
-#### ResNet18 Encoder Backbone
-Rather than training a U-Net encoder from scratch, this implementation utilizes a pretrained ResNet18 backbone.
-* **Residual Learning:** ResNet architectures utilize identity shortcut connections to solve the vanishing gradient problem in deep networks. By adding the input of a block directly to its output, the network learns to model residual details, which prevents gradients from vanishing during backpropagation and stabilizes the training process.
-* **Transfer Learning:** The encoder weights are initialized with parameters pretrained on the ImageNet dataset. ImageNet contains over a million natural images, forcing the early layers of ResNet18 to learn highly generalizable visual features (such as edge detectors, corners, color gradients, and textures). By utilizing these pretrained feature extractors, the model converges much faster and generalizes far better on small, domain-specific datasets.
-* **Why ResNet18:** ResNet18 was selected over deeper architectures (like ResNet34 or ResNet50) to limit model capacity. With fewer layers and parameters, ResNet18 extracts rich feature hierarchies while acting as a structural regularizer against overfitting on small datasets.
-
-### Compound Loss Formulation: BCE + Dice Loss
-The model is trained using a combined loss function that balances pixel-wise class confidence and global boundary alignment:
-
-* **Binary Cross-Entropy (BCE) Loss:** BCE evaluates classification error on a pixel-by-pixel level independently. It measures how close the predicted probability is to the true binary value. While BCE provides stable gradients, it can struggle when background pixels vastly outnumber flood pixels (class imbalance), causing the network to ignore small flood regions.
-* **Dice Loss:** Dice Loss measures the direct overlap between the predicted mask and ground truth mask, penalizing mismatches at a structural level. Because it evaluates the prediction globally rather than pixel-by-pixel, it naturally handles class imbalance.
-* **Synergy of Combined Loss:** BCE establishes stable training dynamics in the early stages, while Dice Loss optimizes directly for spatial overlap and boundary accuracy. Combining them forces the network to minimize individual pixel errors while maximizing overall overlap, preventing the model from predicting a blank mask.
-
-### Evaluation Metrics
-Validation performance is tracked via spatial overlap metrics:
-* **F1 Score / Dice Coefficient:** Measures the harmonic mean of precision and recall, representing the model's accuracy in capturing flooded areas without generating excess false alarms.
-* **Intersection over Union (IoU):** Measures the ratio of intersection to union between predicted and ground truth masks, reflecting the tightness of boundary alignment.
-
-A validation F1 of around 0.75 and IoU of around 0.60 indicate robust overlap and precise boundary mapping across diverse aerial scenes.
+* **U-Net Architecture:** The contracting path extracts context and features, while the expanding path restores spatial dimensions. Skip connections pass high-resolution details directly from the encoder to the decoder, enabling precise flood boundary reconstruction.
+* **ResNet34 Encoder:** Rather than training from scratch, I used a pretrained ResNet34 encoder. Residual learning shortcuts stabilize training, while ImageNet transfer learning provides robust, generalizable visual features (edges, textures) that prevent overfitting on our small dataset.
+* **Combined BCE + Dice Loss:** BCE evaluates independent pixel classification confidence, ensuring stable gradient updates. Dice Loss measures the global overlap between prediction and ground truth, mitigating the effects of class imbalance where background pixels dominate.
 
 ---
 
-## Engineering Journey and Case Study
+## My Engineering Journey
 
-I went through an iterative engineering process to design, regularize, and scale this model, moving through several architectures and hardware setups to combat overfitting on a small dataset.
+### The Validation Plateau & Breakthrough
+I trained my ResNet34 U-Net on a dataset of 290 aerial images (split into 232 training and 58 validation images). During training on a Google Colab T4 GPU, I experienced a frustrating plateau: the validation F1 score stagnated between 0.57 and 0.58 from Epoch 3 all the way through Epoch 23, even though my training F1 steadily climbed from 0.79 to 0.88. It appeared that the model had hit a generalization limit or was stuck in a local minimum.
 
-```
-       Initial Design                   Model Tuning                     Infrastructure
-+--------------------------+    +--------------------------+    +------------------------------+
-|   ResNet34 Backbone      |    |   ResNet18 Backbone      |    |     Local CPU Training       |
-|  (Overfitted Prototype)  |    |  (Simplified Capacity)   |    | (Extremely slow iterations)  |
-+------------+-------------+    +------------+-------------+    +--------------+---------------+
-             |                               |                                 |
-             v                               v                                 v
-+------------+-------------+    +------------+-------------+    +--------------+---------------+
-| Training F1: ~0.88       |    | Training F1: ~0.91       |    |     Google Colab T4 GPU      |
-| Validation F1: ~0.57     |    | Validation F1: ~0.75     |    |   (Epoch speedup: ~100x)     |
-+--------------------------+    +--------------------------+    +------------------------------+
-```
+However, I persevered and let the training run continue. Around Epoch 24, the model suddenly broke out of this plateau. The validation F1 score began rising rapidly: jumping to 0.59 in Epoch 24, 0.66 in Epoch 26, 0.71 in Epoch 29, and finally peaking at 0.7531 (with a validation IoU of 0.6057) at Epoch 30.
 
-### Initial Prototype & Overfitting
-I built my first prototype using a ResNet34 encoder backbone inside a U-Net model. While I compiled it with the standard Adam optimizer and a combined loss function hoping for strong accuracy, I immediately ran into a major overfitting issue. The training F1 score rapidly climbed to around 0.88, but the validation F1 score stagnated and would not go past 0.57. Since the dataset is small—with only 290 total images (232 for training and 58 for validation)—the high-capacity ResNet34 backbone was simply memorizing the specific background details and textures of the training images instead of learning how to identify flooded regions generally.
+### Debugging the EfficientNet Experiment
+Before finalizing the ResNet34 backbone, I experimented with an EfficientNet-B0 encoder. This turned into a major debugging exercise:
+1. Automated weights download links in the legacy library failed due to deprecated URLs.
+2. I accidentally compiled the backbone as an encoder-only model, missing the U-Net decoders.
+3. Once decoders were added, I hit tensor shape mismatch errors during skip-connection concatenation because EfficientNet's stride operations created spatial dimensions that did not align with the decoder.
+While I ultimately reverted to ResNet34, resolving these hurdles gave me a deep understanding of feature map spatial dimensions.
 
-### Callbacks and Regularization
-To address this generalization gap, I introduced two callbacks into the training pipeline to monitor and regularize the model:
-1. **Model Checkpointing:** I set up checkpointing to monitor validation performance and save only the weights representing the absolute best validation F1 score. This prevented the final saved model from capturing overfitted features from later epochs.
-2. **Early Stopping:** I configured early stopping with a patience of 8 epochs. This automatically stopped training when the validation F1 score stopped improving, preventing the model from continuing to overfit the training dataset.
-
-### Simplifying the Encoder Backbone
-Realizing that the network had too much capacity for a small dataset, I decided to simplify the encoder by switching from ResNet34 to ResNet18. This significantly reduced the parameter count. This change acted as a strong regularization mechanism: while training F1 reached 0.91, this time the validation F1 successfully rose to 0.75, with the validation IoU settling around 0.60. This confirmed that reducing the model capacity was key to getting the model to generalize.
-
-### EfficientNet Hurdles
-I also tried switching the encoder backbone to EfficientNet (specifically EfficientNet-B0) to see if depthwise separable convolutions would perform better. This experiment turned into a major debugging exercise. First, I ran into broken download issues when the automated script failed to fetch the pretrained weights due to legacy library backend issues. Once I worked around that, I realized I had accidentally instantiated the classification backbone without the actual U-Net decoder blocks, meaning it could not output spatial masks. Finally, when manually writing the connection layers, I hit tensor shape mismatch errors because EfficientNet downsamples features with different strides and dimensions compared to ResNet. While I ultimately reverted to ResNet18, debugging these mismatches gave me a much deeper understanding of spatial dimensions in contracting and expanding paths.
-
-### CPU to GPU Migration
-Initially, I was training the model on a local CPU. Because backpropagation through convolutional neural networks is computationally expensive, each epoch took several minutes, which made iterative testing extremely slow. To speed up my workflow, I migrated the pipeline to Google Colab, leveraging a T4 GPU. This GPU accelerated the training process dramatically, dropping the epoch time to under a second and allowing me to iterate and find the best configuration quickly.
+### Infrastructure & Iteration
+Initial local training on CPU was extremely slow, taking several minutes per epoch. Migrating to Google Colab with a T4 GPU reduced the epoch time to under a second, accelerating my experimentation and enabling the full 30-epoch sweep.
 
 ---
 
 ## Inference Pipeline
-
-The inference pipeline processes raw aerial images and outputs binarized flood masks alongside visual comparisons.
 
 ```mermaid
 graph TD
@@ -151,30 +119,16 @@ graph TD
     K --> L
 ```
 
-### Detailed Pipeline Steps
-1. **Image Reading:** The input image is loaded via OpenCV (`cv2.imread`).
-2. **Color Space Conversion:** OpenCV reads images in BGR format; they are converted to RGB using `cv2.cvtColor` to match the training distribution.
-3. **Dimensional Resize:** The image is resized to 256 x 256 pixels using bilinear interpolation (`cv2.resize`).
-4. **Data Normalization:** Pixel values are cast to float32 and normalized to a range of 0.0 to 1.0 by dividing by 255.0.
-5. **Model Evaluation:** The image is expanded to batch shape (1, 256, 256, 3) and passed through the ResNet18 U-Net, returning a probability map.
-6. **Binarization:** A threshold of 0.5 is applied; values above 0.5 are mapped to 255 (flooded) and values below to 0 (background).
-7. **Spatial Upsampling:** The mask is resized back to the original image dimensions using nearest-neighbor interpolation (`cv2.INTER_NEAREST`) to preserve sharp boundary transitions without introducing interpolation artifacts.
-8. **Visual Overlay:** A translucent blue mask is blended with the original image by mixing 40% of the original image with 60% of a solid blue color mask (RGB values [0, 100, 255]) to highlight the predicted flooded pixels.
-9. **Error Map Generation:** If ground truth is provided, an error map is constructed to evaluate predictions.
+### Pipeline Steps
+1. **Preprocessing:** Convert the input image from BGR to RGB, resize it to 256 x 256 pixels, and normalize pixel values to a 0.0–1.0 range.
+2. **Forward Pass:** The ResNet34 U-Net generates a probability map.
+3. **Postprocessing:** Apply a 0.5 binarization threshold, resize the mask back to the original image dimensions (nearest-neighbor), and blend it with the original image (40% original image, 60% blue mask) for visual overlay. If ground truth is provided, an error map is generated.
 
 ---
 
 ## Empirical Results and Qualitative Analysis
 
-### Quantitative Performance
-The model evaluation script (`test.py`) filters out images with less than 10% flood coverage to focus on challenging areas. The overall evaluation yields the following metrics:
-
-| Metric | Performance |
-| :--- | :--- |
-| **Validation F1 Score (Dice)** | 0.75 |
-| **Validation IoU Score** | 0.60 |
-
-Below are the evaluation results for the top 5 test images:
+Below are the evaluation results for the top 5 test images (excluding images with less than 10% flood coverage to focus on challenging cases):
 
 | Rank | Image File | Dice (F1) Score | IoU Score | Flood Coverage (%) |
 | :--- | :--- | :---: | :---: | :---: |
@@ -184,29 +138,8 @@ Below are the evaluation results for the top 5 test images:
 | 4 | `2016.jpg` | 0.9476 | 0.9004 | 49.8% |
 | 5 | `3030.jpg` | 0.9472 | 0.8996 | 84.1% |
 
-### Qualitative Visualizations
-
-The following subplots demonstrate the model's predictions compared to the ground truth masks and show the corresponding error maps.
-
-#### Best Case Evaluation: Image 2001.jpg (Dice = 0.9825, IoU = 0.9656)
-This image features extensive flood coverage across open terrain. The model reconstructs the flood boundaries with high fidelity, as indicated by the minimal error map noise.
-
-<p align="center">
-  <img src="tests/2001_visualization.png" alt="Inference Visualization Image 2001" width="90%" />
-</p>
-
-#### High-Performance Evaluation: Image 3039.jpg (Dice = 0.9659, IoU = 0.9340)
-This image evaluates the model's ability to segment boundaries near vegetation and high-frequency structures. The model accurately identifies the main flood areas while exhibiting minor false positive noise at the boundaries.
-
-<p align="center">
-  <img src="tests/3039_visualization.png" alt="Inference Visualization Image 3039" width="90%" />
-</p>
-
-#### Error Map Color Legend
-The error maps utilize color coding to highlight correct and incorrect pixel classifications:
-* **Green (True Positive):** Pixels correctly identified as flooded by both the model and the ground truth.
-* **Red (False Positive):** Pixels incorrectly identified as flooded (predicted as flood by the model, but annotated as background in the ground truth).
-* **Blue (False Negative):** Pixels incorrectly identified as background (predicted as background by the model, but annotated as flood in the ground truth).
+* **Error Map Legend:** Green represents True Positive (correctly segmented flood), Red represents False Positive (model incorrectly predicted flood), and Blue represents False Negative (model missed flood).
+* **Visual Evaluation:** The model excels at segmenting broad, continuous flooded areas (as seen in `2001.jpg`). Minor boundary noise occurs near dense vegetation or complex structural borders (as seen in `3039.jpg`).
 
 ---
 
@@ -217,57 +150,23 @@ flood-seg-net/
 ├── data/
 │   ├── Image/                 # Raw aerial JPEG images (290 files)
 │   ├── Mask/                  # Ground truth binary PNG masks (290 files)
-│   └── metadata.csv           # Maps image filenames to mask filenames
+│   └── metadata.csv           # Filename mappings
 ├── tests/
 │   ├── 2001_mask.png          # Output binary mask for image 2001.jpg
-│   ├── 2001_visualization.png # 5-panel subplot for image 2001.jpg
+│   ├── 2001_visualization.png # 5-panel visualization for image 2001.jpg
 │   ├── 3039_mask.png          # Output binary mask for image 3039.jpg
-│   └── 3039_visualization.png # 5-panel subplot for image 3039.jpg
-├── best_model_colab.keras     # Trained weights checkpoint (ResNet18 U-Net)
+│   └── 3039_visualization.png # 5-panel visualization for image 3039.jpg
+├── best_model_colab.keras     # Trained weights (ResNet34 U-Net)
 ├── flood-seg-net.ipynb        # Training pipeline notebook
 ├── inference.py               # Single-image inference script
-├── test.py                    # Batch evaluation and metrics generation script
-├── .gitignore                 # Excludes cache files and temporary outputs
+├── test.py                    # Batch evaluation script
 └── readme.md                  # Project documentation (this file)
 ```
-
-### Script Directory Purpose
-* `flood-seg-net.ipynb`: Google Colab notebook for the training pipeline. It handles loading data, setting up TF datasets, compiling the ResNet18 U-Net model with combined loss, defining training callbacks, fitting the model for 30 epochs, and exporting the trained keras weights.
-* `inference.py`: Run this script to generate predictions on individual images. It loads the saved model, resizes the input image, runs inference, applies thresholding, creates overlays and error maps, and saves the final visualizations.
-* `test.py`: Evaluates the model across the test set. It loads images, ignores those with low flood coverage (under 10%), computes Dice and IoU scores, displays the top 20 performing images, and saves the visualization for the best-performing image.
-
----
-
-## Training Configuration
-
-| Parameter | Configuration Value |
-| :--- | :--- |
-| **Input Shape** | 256 x 256 x 3 |
-| **Batch Size** | 8 |
-| **Optimizer** | Adam (Learning Rate = 0.001) |
-| **Loss Function** | Binary Cross-Entropy + Dice Loss |
-| **Epochs** | 30 |
-| **Callbacks** | `ModelCheckpoint`, `EarlyStopping` (Patience = 8) |
-| **Dataset Size** | 290 total images (232 Train / 58 Validation) |
-| **Hardware Platform** | Google Colab T4 GPU |
 
 ---
 
 ## Future Work
-
-1. **Backbone Evaluation:** Re-evaluating EfficientNet-B0 or ResNeXt encoders by establishing clean dependency versions and resolving the shape alignment issues inside the decoder.
-2. **Attention U-Net Integration:** Adding self-attention gates to the U-Net skip connections to suppress activations in irrelevant background regions and focus feature representations on flood boundaries.
-3. **DeepLabV3+ Exploration:** Implementing a DeepLabV3+ model with dilated (atrous) convolutions and Atrous Spatial Pyramid Pooling (ASPP) to capture multi-scale contextual features without losing spatial resolution.
-4. **Data Augmentation:** Applying random rotations, horizontal/vertical flips, and color jittering to regularize training and mitigate the effects of the small dataset size (290 images).
-5. **Test-Time Augmentation (TTA):** Running inference on multiple augmented variations of a single image and averaging the output probability maps to produce more stable masks.
-6. **Edge Optimization:** Quantizing the model using TensorFlow Lite (TFLite) to INT8 precision for real-time inference on edge computing devices, such as search-and-rescue drones.
-
----
-
-## References
-
-1. **U-Net:** Ronneberger, O., Fischer, P., & Brox, T. (2015). *U-Net: Convolutional Networks for Biomedical Image Segmentation*. arXiv preprint arXiv:1505.04597.
-2. **ResNet:** He, K., Zhang, X., Ren, S., & Sun, J. (2016). *Deep Residual Learning for Image Recognition*. In Proceedings of the IEEE conference on computer vision and pattern recognition (CVPR).
-3. **Flood Area Segmentation Dataset:** Faizal Karim. Kaggle. [Flood Area Segmentation Dataset](https://www.kaggle.com/datasets/faizalkarim/flood-area-segmentation).
-4. **TensorFlow:** Abadi, M., et al. (2015). *TensorFlow: Large-Scale Machine Learning on Heterogeneous Systems*. Software available from tensorflow.org.
-5. **Segmentation Models Library:** Pavel Yakubovskiy. [segmentation_models](https://github.com/qubvel/segmentation_models) GitHub Repository.
+1. **Data Augmentation:** Apply random rotations, horizontal/vertical flips, and color jittering to expand dataset diversity and improve generalization.
+2. **Attention U-Net:** Integrate self-attention gates to skip connections to focus features on boundaries.
+3. **DeepLabV3+ Exploration:** Evaluate dilated convolutions and Atrous Spatial Pyramid Pooling (ASPP) to capture multi-scale context.
+4. **Edge Deployment:** Quantize weights using TFLite to INT8 precision for real-time drone inference.
