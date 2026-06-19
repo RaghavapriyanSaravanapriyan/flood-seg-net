@@ -22,7 +22,8 @@
 ## Project Overview
 This repository contains a deep learning system for the binary semantic segmentation of flooded regions from aerial imagery. The model classifies each pixel as either **Flood** or **Background**, allowing precise spatial mapping of flood zones. The system was trained on the Flood Area Segmentation dataset, achieving robust boundary delineation.
 
-To download my trained weights for this segmentation task, download from google drive @ https://drive.google.com/file/d/17b_tmkTXwPgSAUQb5xT-WjbQa4EvzOjx/view?usp=sharing
+*To download my trained weights for this segmentation task, download from google drive @ https://drive.google.com/file/d/17b_tmkTXwPgSAUQb5xT-WjbQa4EvzOjx/view?usp=sharing*
+
 ---
 
 ## Technical Architecture
