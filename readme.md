@@ -1,8 +1,9 @@
 # Flood-Seg-Net: Semantic Segmentation of Flooded Regions in Aerial Imagery
 
 <p align="center">
-  <img src="tests/2001_visualization.png" alt="Inference Visualization Image 2001" width="49%" />
-  <img src="tests/3039_visualization.png" alt="Inference Visualization Image 3039" width="49%" />
+  <img src="tests/2001_visualization.png" alt="Inference Visualization Image 2001" width="100%" />
+  <br>
+  <img src="tests/3039_visualization.png" alt="Inference Visualization Image 3039" width="100%" />
 </p>
 
 ### Model Performance & Configuration Summary
@@ -22,7 +23,34 @@
 ## Project Overview
 This repository contains a deep learning system for the binary semantic segmentation of flooded regions from aerial imagery. The model classifies each pixel as either **Flood** or **Background**, allowing precise spatial mapping of flood zones. The system was trained on the Flood Area Segmentation dataset, achieving robust boundary delineation.
 
-*To download my trained weights for this segmentation task, download from google drive @ https://drive.google.com/file/d/17b_tmkTXwPgSAUQb5xT-WjbQa4EvzOjx/view?usp=sharing*
+---
+
+## Repository Structure
+
+```
+flood-seg-net/
+├── data/
+│   ├── Image/                 # Raw aerial JPEG images (290 files)
+│   ├── Mask/                  # Ground truth binary PNG masks (290 files)
+│   └── metadata.csv           # Filename mappings
+├── tests/
+│   ├── 2001_mask.png          # Output binary mask for image 2001.jpg
+│   ├── 2001_visualization.png # 5-panel visualization for image 2001.jpg
+│   ├── 3039_mask.png          # Output binary mask for image 3039.jpg
+│   └── 3039_visualization.png # 5-panel visualization for image 3039.jpg
+├── best_model_colab.keras     # Trained weights (ResNet34 U-Net)
+├── flood-seg-net.ipynb        # Training pipeline notebook
+├── inference.py               # Single-image inference script
+├── test.py                    # Batch evaluation script
+└── readme.md                  # Project documentation (this file)
+```
+
+---
+
+## Important links
+ - *To download my trained weights for this segmentation task, download from google drive @ https://drive.google.com/file/d/17b_tmkTXwPgSAUQb5xT-WjbQa4EvzOjx/view?usp=sharing*
+
+  - *To download the dataset from kaggle @ https://www.kaggle.com/datasets/faizalkarim/flood-area-segmentation*
 
 ---
 
@@ -143,29 +171,6 @@ Below are the evaluation results for the top 5 test images (excluding images wit
 * **Error Map Legend:** Green represents True Positive (correctly segmented flood), Red represents False Positive (model incorrectly predicted flood), and Blue represents False Negative (model missed flood).
 * **Visual Evaluation:** The model excels at segmenting broad, continuous flooded areas (as seen in `2001.jpg`). Minor boundary noise occurs near dense vegetation or complex structural borders (as seen in `3039.jpg`).
 
----
-
-## Repository Structure
-
-```
-flood-seg-net/
-├── data/
-│   ├── Image/                 # Raw aerial JPEG images (290 files)
-│   ├── Mask/                  # Ground truth binary PNG masks (290 files)
-│   └── metadata.csv           # Filename mappings
-├── tests/
-│   ├── 2001_mask.png          # Output binary mask for image 2001.jpg
-│   ├── 2001_visualization.png # 5-panel visualization for image 2001.jpg
-│   ├── 3039_mask.png          # Output binary mask for image 3039.jpg
-│   └── 3039_visualization.png # 5-panel visualization for image 3039.jpg
-├── best_model_colab.keras     # Trained weights (ResNet34 U-Net)
-├── flood-seg-net.ipynb        # Training pipeline notebook
-├── inference.py               # Single-image inference script
-├── test.py                    # Batch evaluation script
-└── readme.md                  # Project documentation (this file)
-```
-
----
 
 ## Future Work
 1. **Data Augmentation:** Apply random rotations, horizontal/vertical flips, and color jittering to expand dataset diversity and improve generalization.
