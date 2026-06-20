@@ -119,16 +119,6 @@ I trained my ResNet34 U-Net on a dataset of 290 aerial images (split into 232 tr
 
 However, I persevered and let the training run continue. Around Epoch 24, the model suddenly broke out of this plateau. The validation F1 score began rising rapidly: jumping to 0.59 in Epoch 24, 0.66 in Epoch 26, 0.71 in Epoch 29, and finally peaking at 0.7531 (with a validation IoU of 0.6057) at Epoch 30.
 
-### Debugging the EfficientNet Experiment
-Before finalizing the ResNet34 backbone, I experimented with an EfficientNet-B0 encoder. This turned into a major debugging exercise:
-1. Automated weights download links in the legacy library failed due to deprecated URLs.
-2. I accidentally compiled the backbone as an encoder-only model, missing the U-Net decoders.
-3. Once decoders were added, I hit tensor shape mismatch errors during skip-connection concatenation because EfficientNet's stride operations created spatial dimensions that did not align with the decoder.
-While I ultimately reverted to ResNet34, resolving these hurdles gave me a deep understanding of feature map spatial dimensions.
-
-### Infrastructure & Iteration
-Initial local training on CPU was extremely slow, taking several minutes per epoch. Migrating to Google Colab with a T4 GPU reduced the epoch time to under a second, accelerating my experimentation and enabling the full 30-epoch sweep.
-
 ---
 
 ## Inference Pipeline
@@ -173,7 +163,6 @@ Below are the evaluation results for the top 5 test images (excluding images wit
 
 
 ## Future Work
-1. **Data Augmentation:** Apply random rotations, horizontal/vertical flips, and color jittering to expand dataset diversity and improve generalization.
-2. **Attention U-Net:** Integrate self-attention gates to skip connections to focus features on boundaries.
-3. **DeepLabV3+ Exploration:** Evaluate dilated convolutions and Atrous Spatial Pyramid Pooling (ASPP) to capture multi-scale context.
-4. **Edge Deployment:** Quantize weights using TFLite to INT8 precision for real-time drone inference.
+1. **Attention U-Net:** Integrate self-attention gates to skip connections to focus features on boundaries.
+2. **DeepLabV3+ Exploration:** Evaluate dilated convolutions and Atrous Spatial Pyramid Pooling (ASPP) to capture multi-scale context.
+3. **Edge Deployment:** Quantize weights using TFLite to INT8 precision for real-time drone inference.
