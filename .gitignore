@@ -1,4 +1,7 @@
-/data
+data
 .venv/
 .ipynb_checkpoints/
 best_model_colab.keras
+.vscode/
+.ipynb_checkpoints/
+__pycache__/
