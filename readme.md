@@ -10,8 +10,8 @@
 
 | Metric / Configuration | Value / Setting |
 | :--- | :--- |
-| **Validation F1 Score (Dice)** | 0.7531 (0.75) |
-| **Validation IoU Score** | 0.6057 (0.61) |
+| **Validation F1 Score (Dice)** | 0.8712 (0.87) |
+| **Validation IoU Score** | 0.7728 (0.77) |
 | **Best Test Image (2001.jpg) Dice / IoU** | 0.9825 / 0.9656 |
 | **Backbone Encoder** | ResNet34 U-Net (ImageNet Transfer Learning) |
 | **Training Epochs / Batch Size** | 30 / 8 |
@@ -115,9 +115,9 @@ graph TD
 ## My Engineering Journey
 
 ### The Validation Plateau & Breakthrough
-I trained my ResNet34 U-Net on a dataset of 290 aerial images (split into 232 training and 58 validation images). During training on a Google Colab T4 GPU, I experienced a frustrating plateau: the validation F1 score stagnated between 0.57 and 0.58 from Epoch 3 all the way through Epoch 23, even though my training F1 steadily climbed from 0.79 to 0.88. It appeared that the model had hit a generalization limit or was stuck in a local minimum.
+I trained my ResNet34 U-Net on a dataset of 290 aerial images (split into 232 training and 58 validation images). During training on a Google Colab T4 GPU, I experienced a frustrating plateau: the validation F1 score stagnated between 0.5775 and 0.5985 (averaging around 0.58) from Epoch 1 all the way through Epoch 13, even though my training F1 steadily climbed from 0.8718 to 0.9150. It appeared that the model had hit a generalization limit or was stuck in a local minimum.
 
-However, I persevered and let the training run continue. Around Epoch 24, the model suddenly broke out of this plateau. The validation F1 score began rising rapidly: jumping to 0.59 in Epoch 24, 0.66 in Epoch 26, 0.71 in Epoch 29, and finally peaking at 0.7531 (with a validation IoU of 0.6057) at Epoch 30.
+However, I persevered and let the training run continue. Around Epoch 14, the model suddenly broke out of this plateau. The validation F1 score began rising rapidly: jumping to 0.6660 in Epoch 14, 0.7481 in Epoch 17, and steadily climbing starting from Epoch 19 (0.7872), peaking at 0.8712 (with a validation IoU of 0.7728) at Epoch 26. Towards the end of the 30-epoch run, the model exhibited some late-stage instability—briefly dropping to 0.6424 in Epoch 28 before recovering to finish at 0.8147 (validation IoU of 0.6884) at Epoch 30—making the checkpointed Epoch 26 weights our best model.
 
 ---
 
