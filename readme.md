@@ -48,9 +48,9 @@ flood-seg-net/
 ---
 
 ## Important links
- - *To download my trained weights for this segmentation task, download from google drive @ https://drive.google.com/file/d/17b_tmkTXwPgSAUQb5xT-WjbQa4EvzOjx/view?usp=sharing*
+ - *To download my trained weights for this segmentation task, download from my google drive @ https://drive.google.com/file/d/17b_tmkTXwPgSAUQb5xT-WjbQa4EvzOjx/view?usp=sharing*
 
-  - *To download the dataset from kaggle @ https://www.kaggle.com/datasets/faizalkarim/flood-area-segmentation*
+  - *To download the dataset from kaggle @ https://www.kaggle.com/datasets/faizalkarim/flood-area-segmentation* 
 
 ---
 
